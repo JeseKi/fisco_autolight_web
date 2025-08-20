@@ -16,6 +16,7 @@ from .node_setup import (
     _is_build_chain_layout_ready,
     _run_build_chain_sh,
     _get_env_int,
+    overwrite_tls_with_internal_ca,
 )
 from .node_process import start_node, get_node_status
 
@@ -37,5 +38,11 @@ def ensure_started() -> NodeStatus:
         rpc_port = _get_env_int("FISCO_RPC_PORT", 20200)
         _run_build_chain_sh(p2p_port, rpc_port)
     
+    # 使用内部 CA 覆盖 TLS（总是覆盖，确保统一）
+    try:
+        overwrite_tls_with_internal_ca()
+    except Exception as e:
+        logger.warning(f"覆盖 TLS 失败：{e}")
+
     # 启动节点
     return start_node()

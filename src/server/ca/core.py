@@ -25,6 +25,7 @@ from cryptography.hazmat.primitives.serialization import (
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from datetime import datetime, timedelta, timezone
 from loguru import logger
+from src.server.config import config
 
 # 模拟缓存挑战（生产环境建议用 Redis 或数据库）
 CHALLENGE_STORE: Dict[str, Dict[str, str]] = {}
@@ -253,8 +254,8 @@ def _load_or_create_dev_ca() -> tuple:
     subject = x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "CN"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Fisco Dev CA"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "Fisco Development Root CA"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, config.ca_root_organization_name),
+            x509.NameAttribute(NameOID.COMMON_NAME, config.ca_root_common_name),
         ]
     )
     now = datetime.now(timezone.utc)

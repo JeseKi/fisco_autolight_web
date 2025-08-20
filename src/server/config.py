@@ -27,6 +27,11 @@ class Config(BaseSettings):
     linux_lightnode_ezdeploy_url: str = "https://github.com/JeseKi/fisco_autolight_client"
     mac_lightnode_ezdeploy_url: str = "https://github.com/JeseKi/fisco_autolight_client"
     nodes: List[str] = []
+    # 内部 CA/证书可定制名称
+    ca_root_common_name: str = "KiSpace Development Root CA"
+    ca_root_organization_name: str = "KiSpace"
+    node_cert_common_name: str = "kispace 4 fisco-server-node"
+    node_cert_organization_name: str = "KiSpaceCA"
 
     # pydantic v2 风格配置（等价于旧版的 class Config）
     model_config = SettingsConfigDict(

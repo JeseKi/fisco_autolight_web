@@ -9,8 +9,10 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+import base64
 
 from loguru import logger
+from src.server.ca.core import _load_or_create_dev_ca, issue_certificate_with_local_ca
 
 
 def _get_env_int(name: str, default: int) -> int:
@@ -108,3 +110,51 @@ def _run_build_chain_sh(p2p_port: int, rpc_port: int) -> None:
     except Exception as e:
         logger.error(f"运行 build_chain.sh 时发生未知错误: {str(e)}")
         raise RuntimeError(f"运行 build_chain.sh 时发生未知错误: {str(e)}")
+
+
+def overwrite_tls_with_internal_ca() -> None:
+    """使用内部 CA 覆盖节点的 TLS（ssl.key、ssl.crt、ca.crt）。
+
+    - 始终覆盖，确保服务端统一 CA。
+    - 生成新 ECDSA 私钥，基于其 CSR 由内部 CA 签发证书。
+    """
+    if not _is_build_chain_layout_ready():
+        return
+    p = _get_build_chain_layout_paths()
+    conf_dir = p["conf"]
+    conf_dir.mkdir(parents=True, exist_ok=True)
+
+    # 确保内部 CA 就绪
+    _load_or_create_dev_ca()
+
+    # 生成新的 ECDSA P-256 私钥与 CSR
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization, hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    from src.server.config import config as app_config
+    subject = x509.Name([
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "CN"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, app_config.node_cert_organization_name),
+        x509.NameAttribute(NameOID.COMMON_NAME, app_config.node_cert_common_name),
+    ])
+    csr = x509.CertificateSigningRequestBuilder().subject_name(subject).sign(key, hashes.SHA256())
+    csr_pem = csr.public_bytes(serialization.Encoding.PEM)
+    csr_b64 = base64.b64encode(csr_pem).decode("utf-8")
+
+    result = issue_certificate_with_local_ca(csr_b64)
+
+    # 覆盖写入 TLS 三件
+    (conf_dir / "ssl.key").write_bytes(
+        key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    (conf_dir / "ssl.crt").write_bytes(base64.b64decode(result["certificate"]))
+    (conf_dir / "ca.crt").write_bytes(base64.b64decode(result["ca_bundle"]))
+
+    logger.info("已使用内部 CA 覆盖 TLS 证书与私钥：conf/ssl.key、conf/ssl.crt、conf/ca.crt")
