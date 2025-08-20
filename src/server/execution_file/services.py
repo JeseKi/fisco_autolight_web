@@ -48,3 +48,10 @@ def get_lightnode_ezdeploy(platform: Platform) -> str:
         return config.mac_lightnode_ezdeploy_url
     else:
         raise ValueError(f"不支持的平台: {platform}")
+    
+def get_build_chain_sh() -> str:
+    """
+    获取 build_chain.sh 脚本。
+    """
+    with open(Path.cwd() / "assets" / "build_chain.sh", "r") as f:
+        return f.read()

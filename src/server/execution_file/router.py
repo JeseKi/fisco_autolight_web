@@ -41,3 +41,10 @@ async def get_lightnode_ezdeploy(platform: Platform) -> str:
     获取 lightnode 部署文件。
     """
     return services.get_lightnode_ezdeploy(platform)
+
+@router.get("/build_chain.sh", response_model=str)
+async def get_build_chain_sh() -> str:
+    """
+    获取 build_chain.sh 脚本。
+    """
+    return services.get_build_chain_sh()
