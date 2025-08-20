@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from src.server.ca.router import router
-from src.server.ca.schemas import ChallengeRequest, IssueRequest
+from src.server.ca.schemas import IssueRequest
 
 
 app = FastAPI()

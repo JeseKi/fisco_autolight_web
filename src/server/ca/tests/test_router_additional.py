@@ -2,12 +2,10 @@
 额外的 router.py 模块测试，用于提高测试覆盖率。
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from src.server.ca.router import router
-from src.server.ca.schemas import ChallengeRequest, IssueRequest
 
 # 创建测试应用
 app = FastAPI()

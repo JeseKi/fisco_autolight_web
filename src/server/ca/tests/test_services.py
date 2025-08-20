@@ -16,6 +16,10 @@ from src.server.ca.schemas import (
     IssueRequest,
 )
 
+from unittest.mock import patch
+from src.server.ca.schemas import ChallengeResponse, CertificateResponse
+
+
 
 def _gen_key_and_csr(common_name: str) -> Tuple[str, str]:
     """生成 EC 私钥与 CSR（返回 base64 编码的公钥与 CSR PEM）。"""
@@ -171,17 +175,6 @@ def test_invalid_challenge():
         )
     assert "无效或过期的挑战" in str(ei.value)
 
-
-"""
-测试 services.py 模块。
-"""
-
-import pytest
-from unittest.mock import patch, MagicMock
-from src.server.ca import services
-from src.server.ca.schemas import ChallengeRequest, IssueRequest, ChallengeResponse, CertificateResponse
-
-
 def test_request_challenge_service():
     """测试请求挑战服务"""
     req = ChallengeRequest(
@@ -266,7 +259,7 @@ def test_issue_certificate_service_invalid_challenge():
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
-    public_key_b64 = base64.b64encode(public_key_pem).decode("utf-8")
+    _ = base64.b64encode(public_key_pem).decode("utf-8")
 
     csr = (
         x509.CertificateSigningRequestBuilder()
@@ -298,7 +291,7 @@ def test_issue_certificate_service_mismatched_data():
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
-    public_key_b64 = base64.b64encode(public_key_pem).decode("utf-8")
+    _ = base64.b64encode(public_key_pem).decode("utf-8")
 
     csr = (
         x509.CertificateSigningRequestBuilder()

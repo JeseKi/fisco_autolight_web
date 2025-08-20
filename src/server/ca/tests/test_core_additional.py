@@ -5,7 +5,7 @@
 import base64
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
