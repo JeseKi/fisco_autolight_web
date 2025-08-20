@@ -24,6 +24,7 @@ class Config(BaseSettings):
     linux_execution_file_url: str = "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos-linux-x86_64.tar.gz"
     macos_execution_file_url: str = "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos-macOS-x86_64.tar.gz"
     windows_execution_file_url: str = "windows 目前不支持"
+    fisco_url: str = "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos"
     nodes: List[str] = []
 
     # pydantic v2 风格配置（等价于旧版的 class Config）

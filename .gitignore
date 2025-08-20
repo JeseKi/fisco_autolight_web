@@ -39,3 +39,7 @@ __pycache__/
 .DS_Store/
 .coverage
 dev_ca
+
+# runtime
+runtime
+src/server/fisco/fisco-bcos
