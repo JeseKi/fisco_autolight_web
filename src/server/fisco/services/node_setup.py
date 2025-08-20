@@ -1,48 +1,22 @@
 """
-文件功能：
-    节点管理服务：负责在服务器启动时保证本地共识节点被初始化并启动。
+节点初始化与配置服务。
 
-公开接口：
-    - ensure_started() -> NodeStatus: 确保节点已启动，若未初始化/未运行则执行初始化与启动
-    - status() -> NodeStatus: 获取节点状态
-
-内部方法：
-    - _get_base_dir() -> str: 运行基目录
-    - _paths() -> dict: 运行目录相关路径
-    - _ensure_dirs(): 创建必要目录
-    - _write_config_if_absent(p2p_port: int, rpc_port: int): 写入固定 config.ini
-    - _write_nodes_if_absent(): 写入最小 nodes.json
-    - _generate_key_and_cert(): 生成 TLS 私钥/CSR并使用本地开发 CA 签名
-    - _ensure_consensus_key_and_genesis(): 生成共识私钥 node.pem 与基于模板的创世文件
-    - _start_process(): 启动 fisco-bcos 进程
-    - _is_process_running(pid: int) -> bool: 判断 PID 是否仍在运行
-    - _probe_rpc_ready(timeout_s: int) -> bool: 探测 RPC 端口
-
-说明：
-    - 代码中的注释与日志均为中文。
-    - P2P/RPC 端口支持通过环境变量 FISCO_P2P_PORT 与 FISCO_RPC_PORT 覆盖。
-    - 默认基目录为 src/server/fisco 目录下的 runtime 子目录，可用 FISCO_BASE_DIR 覆盖。
+负责节点运行环境的初始化，包括目录创建、配置文件生成、证书与密钥生成等。
 """
 
 from __future__ import annotations
 
 import base64
-import json
 import os
-import socket
-import subprocess
-import time
 from pathlib import Path
 from typing import Dict
 
 from loguru import logger
 import httpx
 
-from .schemas import NodeStatus
-
+from src.server.config import config
 # 复用 CA 内部实现
 from src.server.ca.core import _load_or_create_dev_ca, issue_certificate_with_local_ca
-from src.server.config import config
 
 
 def _get_env_int(name: str, default: int) -> int:
@@ -58,7 +32,7 @@ def _get_base_dir() -> Path:
     if env:
         return Path(env).absolute()
     # 默认与仓库中的二进制和模板同级，避免污染源码：使用 runtime 子目录
-    return (Path(__file__).resolve().parent / "runtime").absolute()
+    return (Path(__file__).resolve().parent.parent / "runtime").absolute()
 
 
 def _paths() -> Dict[str, Path]:
@@ -75,8 +49,9 @@ def _paths() -> Dict[str, Path]:
         "ca_crt": base / "conf" / "ca.crt",
         "pid": base / "node.pid",
         "status": base / "node_status.json",
-        "binary": Path(__file__).resolve().parent / "fisco-bcos",
-        "template_config": Path(__file__).resolve().parent / "config.ini",
+        "binary": Path(__file__).resolve().parent.parent / "fisco-bcos",
+        "template_config": Path(__file__).resolve().parent.parent / "config.ini",
+        "template_genesis": Path(__file__).resolve().parent.parent / "config.genesis",
     }
 
 
@@ -196,7 +171,7 @@ def _ensure_consensus_key_and_genesis(group_id: str | None = None) -> None:
 
     # 3) 基于模板生成 group.<group_id>.genesis
     gid = group_id or os.environ.get("FISCO_GROUP_ID", "group0")
-    template_path = Path(__file__).resolve().parent / "config.genesis"
+    template_path = p["template_genesis"]
     if not template_path.exists():
         logger.warning("未找到 config.genesis 模板，跳过创世写入")
         return
@@ -234,50 +209,44 @@ def _ensure_consensus_key_and_genesis(group_id: str | None = None) -> None:
     if in_consensus:
         out_lines.append(f"    node.0={node_id_hex}: 1")
 
-    target = conf_dir / f"group.{gid}.genesis"
-    target.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    # 写入 conf/group.<gid>.genesis（便于多群组管理）
+    conf_genesis = conf_dir / f"group.{gid}.genesis"
+    conf_genesis.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    # 同步写入运行根目录 config.genesis（与官方 build_chain 布局兼容，提升启动成功率）
+    base_genesis = p["base"] / "config.genesis"
+    base_genesis.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
 
 
-def _is_process_running(pid: int) -> bool:
+def _is_build_chain_layout(base: Path) -> bool:
+    """是否为 build_chain 产出的节点布局：根目录下有 config.genesis 与 config.ini。"""
+    return (base / "config.genesis").exists() and (base / "config.ini").exists()
+
+
+def _parse_ports_from_config(config_path: Path) -> tuple[int, int]:
+    """从已有 config.ini 解析 p2p.listen_port 与 rpc.listen_port。"""
+    p2p_port = 30300
+    rpc_port = 20200
+    section = None
     try:
-        os.kill(pid, 0)
-        return True
+        for raw in config_path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith(";"):
+                continue
+            if line.startswith("[") and line.endswith("]"):
+                section = line.strip("[]").lower()
+                continue
+            if "listen_port=" in line:
+                try:
+                    value = int(line.split("=", 1)[1].strip())
+                except Exception:
+                    continue
+                if section == "p2p":
+                    p2p_port = value
+                elif section == "rpc":
+                    rpc_port = value
     except Exception:
-        return False
-
-
-def _probe_rpc_ready(port: int, timeout_s: int = 15) -> bool:
-    """通过 TCP 连接探测 RPC 端口是否就绪。"""
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            try:
-                if s.connect_ex(("127.0.0.1", port)) == 0:
-                    return True
-            except Exception:
-                pass
-        time.sleep(0.3)
-    return False
-
-
-def _start_process(config_path: Path) -> int:
-    p = _paths()
-    binary = p["binary"]
-    if not binary.exists():
-        # 若缺失则尝试下载
-        _ensure_binary()
-    if not binary.exists():
-        raise RuntimeError("找不到 fisco-bcos 可执行文件")
-    # 以基目录为工作目录启动
-    proc = subprocess.Popen(
-        [str(binary), "-c", str(config_path)],
-        cwd=str(p["base"]),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    return proc.pid
+        pass
+    return p2p_port, rpc_port
 
 
 def _ensure_binary() -> None:
@@ -310,106 +279,3 @@ def _ensure_binary() -> None:
                 tmp_path.unlink()
         finally:
             pass
-
-
-def _log_group_observability() -> None:
-    """打印群组相关的关键信息：group_id、genesis 是否存在、账本目录是否存在、本节点 nodeID。"""
-    p = _paths()
-    gid = os.environ.get("FISCO_GROUP_ID", "group0")
-    genesis_path = p["conf"] / f"group.{gid}.genesis"
-    data_group_dir = p["data"] / "group" / gid
-    nodeid_path = p["conf"] / "node.nodeid"
-
-    info: Dict[str, str | bool] = {
-        "group_id": gid,
-        "genesis_exists": genesis_path.exists(),
-        "data_group_dir_exists": data_group_dir.exists(),
-    }
-    if nodeid_path.exists():
-        try:
-            info["node_id"] = nodeid_path.read_text(encoding="utf-8").strip()
-        except Exception:
-            pass
-
-    logger.info(f"群组可观测信息: {json.dumps(info, ensure_ascii=False)}")
-
-
-def status() -> NodeStatus:
-    p = _paths()
-    p2p_port = _get_env_int("FISCO_P2P_PORT", 30300)
-    rpc_port = _get_env_int("FISCO_RPC_PORT", 20200)
-
-    initialized = all(
-        [
-            p["config_ini"].exists(),
-            p["ssl_key"].exists(),
-            p["ssl_crt"].exists(),
-            p["ca_crt"].exists(),
-        ]
-    )
-    pid = None
-    running = False
-    if p["pid"].exists():
-        try:
-            pid = int(p["pid"].read_text().strip())
-            running = _is_process_running(pid)
-        except Exception:
-            pid = None
-            running = False
-
-    return NodeStatus(
-        initialized=initialized,
-        running=running,
-        pid=pid,
-        base_dir=str(p["base"]),
-        p2p_port=p2p_port,
-        rpc_port=rpc_port,
-    )
-
-
-def ensure_started() -> NodeStatus:
-    """确保节点已初始化并运行。"""
-    _ensure_dirs()
-    p2p_port = _get_env_int("FISCO_P2P_PORT", 30300)
-    rpc_port = _get_env_int("FISCO_RPC_PORT", 20200)
-
-    _write_config_if_absent(p2p_port=p2p_port, rpc_port=rpc_port)
-    _write_nodes_if_absent()
-    _generate_key_and_cert()
-    # 在启动前确保共识私钥与创世文件存在
-    try:
-        _ensure_consensus_key_and_genesis(os.environ.get("FISCO_GROUP_ID", "group0"))
-    except Exception as e:
-        logger.warning(f"共识密钥/创世文件准备失败：{e}")
-
-    p = _paths()
-
-    # 若已有 PID 且存活，直接返回
-    if p["pid"].exists():
-        try:
-            pid = int(p["pid"].read_text().strip())
-        except Exception:
-            pid = None
-        if pid and _is_process_running(pid):
-            logger.info("检测到已有 fisco-bcos 进程在运行，跳过启动")
-            return status()
-
-    # 启动新进程
-    pid = _start_process(p["config_ini"])
-    p["pid"].write_text(str(pid))
-
-    # 等待 RPC 就绪
-    if not _probe_rpc_ready(rpc_port, timeout_s=20):
-        logger.warning("RPC 端口在预期时间内未就绪，进程可能仍在初始化")
-
-    # 记录状态文件
-    s = status()
-    p["status"].write_text(json.dumps(s.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
-    # 打印群组可观测信息（基于磁盘与配置，不依赖 RPC）
-    try:
-        _log_group_observability()
-    except Exception as e:
-        logger.debug(f"记录群组可观测信息失败：{e}")
-    return s
-
-
