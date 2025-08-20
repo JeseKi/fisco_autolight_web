@@ -13,7 +13,7 @@ from src.server.fisco_v2.router import router as fisco_router
 from src.server.config import config
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     try:
         # 延迟导入，避免在测试环境无二进制时报错影响导入
         from src.server.fisco_v2.services import ensure_started
@@ -24,6 +24,15 @@ async def lifespan(_: FastAPI):
     except Exception as e:
         logger.warning(f"启动时未能确保 FISCO 节点运行：{e}")
         raise e
+    finally:
+        # 应用关闭事件处理器 - 自动停止 FISCO 节点
+        try:
+            logger.info("应用关闭，正在停止 FISCO 节点...")
+            from src.server.fisco_v2.services.node_process import stop_node
+            stop_node()
+            logger.info("FISCO 节点已停止")
+        except Exception as e:
+            logger.error(f"停止 FISCO 节点时发生错误: {e}")
 
 app = FastAPI(title="FISCO BCOS Certificate Authority Service", lifespan=lifespan)
 
