@@ -1,0 +1,39 @@
+"""
+证书签发服务的数据模型定义。
+"""
+
+from pydantic import BaseModel
+
+
+class ChallengeRequest(BaseModel):
+    """
+    客户端请求挑战时的数据模型。
+    """
+    original_node_id: str
+    public_key: str  # Base64 编码的公钥
+
+
+class ChallengeResponse(BaseModel):
+    """
+    服务端返回挑战的数据模型。
+    """
+    challenge: str
+
+
+class IssueRequest(BaseModel):
+    """
+    客户端请求签发证书时的数据模型。
+    """
+    original_node_id: str
+    public_key: str
+    challenge: str
+    signature: str  # Base64 编码的签名
+
+
+class CertificateResponse(BaseModel):
+    """
+    服务端返回签发证书的数据模型。
+    """
+    node_name: str
+    certificate: str   # Base64 编码的 node.crt
+    ca_bundle: str     # Base64 编码的 ca.crt
