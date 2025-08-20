@@ -22,9 +22,12 @@ certifi==2025.8.3
     # via
     #   httpcore
     #   httpx
+    #   requests
     #   sentry-sdk
 cffi==1.17.1
     # via cryptography
+charset-normalizer==3.4.3
+    # via requests
 click==8.2.1
     # via
     #   pip-tools
@@ -51,6 +54,8 @@ fastapi-cli[standard]==0.0.8
     # via fastapi
 fastapi-cloud-cli==0.1.5
     # via fastapi-cli
+fisco-bcos-python-sdk @ git+https://github.com/FISCO-BCOS/python-sdk.git
+    # via -r requirements.in
 h11==0.16.0
     # via
     #   httpcore
@@ -69,6 +74,7 @@ idna==3.10
     #   anyio
     #   email-validator
     #   httpx
+    #   requests
 iniconfig==2.1.0
     # via pytest
 itsdangerous==2.2.0
@@ -88,13 +94,18 @@ orjson==3.11.2
 packaging==25.0
     # via
     #   build
+    #   py-solc-x
     #   pytest
+parsimonious==0.10.0
+    # via fisco-bcos-python-sdk
 pip-tools==7.5.0
     # via -r requirements.in
 pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+py-solc-x==2.0.4
+    # via -r requirements.in
 pycparser==2.22
     # via cffi
 pydantic[email]==2.11.7
@@ -139,6 +150,10 @@ pyyaml==6.0.2
     # via
     #   fastapi
     #   uvicorn
+regex==2025.7.33
+    # via parsimonious
+requests==2.32.5
+    # via py-solc-x
 rich==14.1.0
     # via
     #   rich-toolkit
@@ -189,7 +204,9 @@ typing-inspection==0.4.1
 ujson==5.10.0
     # via fastapi
 urllib3==2.5.0
-    # via sentry-sdk
+    # via
+    #   requests
+    #   sentry-sdk
 uvicorn[standard]==0.35.0
     # via
     #   fastapi

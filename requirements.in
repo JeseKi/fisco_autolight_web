@@ -8,3 +8,5 @@ cryptography
 loguru
 httpx
 httpx[socks]
+git+https://github.com/FISCO-BCOS/python-sdk.git
+py-solc-x
