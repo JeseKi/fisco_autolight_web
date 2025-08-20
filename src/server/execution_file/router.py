@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter
 from . import services
 from .schemas import Platform
@@ -18,3 +20,10 @@ async def get_lightnode_config() -> str:
     获取 lightnode 配置。
     """
     return services.get_lightnode_config()
+
+@router.get("/nodes", response_model=List[str])
+async def get_nodes_config() -> List[str]:
+    """
+    获取 nodes 配置。
+    """
+    return services.get_nodes_config()

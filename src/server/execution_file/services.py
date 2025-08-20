@@ -1,3 +1,5 @@
+from typing import List
+
 from .schemas import Platform
 from ..config import config
 from pathlib import Path
@@ -22,3 +24,9 @@ def get_lightnode_config() -> str:
     """
     with open(Path.cwd() / "assets" / "config.ini", "r") as f:
         return f.read()
+    
+def get_nodes_config() -> List[str]:
+    """
+    获取 nodes 配置。
+    """
+    return config.nodes
