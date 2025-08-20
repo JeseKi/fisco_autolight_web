@@ -25,6 +25,8 @@ class Config(BaseSettings):
     macos_execution_file_url: str = "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos-macOS-x86_64.tar.gz"
     windows_execution_file_url: str = "windows 目前不支持"
     fisco_url: str = "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos"
+    linux_lightnode_ezdeploy_url: str = "https://github.com/JeseKi/fisco_autolight_client"
+    mac_lightnode_ezdeploy_url: str = "https://github.com/JeseKi/fisco_autolight_client"
     nodes: List[str] = []
 
     # pydantic v2 风格配置（等价于旧版的 class Config）

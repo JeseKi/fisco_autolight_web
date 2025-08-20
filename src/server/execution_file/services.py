@@ -37,3 +37,14 @@ def get_nodes_config() -> List[str]:
     获取 nodes 配置。
     """
     return config.nodes
+
+def get_lightnode_ezdeploy(platform: Platform) -> str:
+    """
+    获取 lightnode 部署文件。
+    """
+    if platform == Platform.LINUX:
+        return config.linux_lightnode_ezdeploy_url
+    elif platform == Platform.MACOS:
+        return config.mac_lightnode_ezdeploy_url
+    else:
+        raise ValueError(f"不支持的平台: {platform}")

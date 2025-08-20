@@ -34,3 +34,10 @@ async def get_nodes_config() -> List[str]:
     获取 nodes 配置。
     """
     return services.get_nodes_config()
+
+@router.get("/ezdeploy/{platform}", response_model=str)
+async def get_lightnode_ezdeploy(platform: Platform) -> str:
+    """
+    获取 lightnode 部署文件。
+    """
+    return services.get_lightnode_ezdeploy(platform)
