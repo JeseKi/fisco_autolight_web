@@ -1,4 +1,4 @@
-# 证书签发方案：FastAPI + Step CLI（客户端生成私钥的终极安全版）
+# 证书签发方案：FastAPI + cryptography（客户端生成私钥的终极安全版）
 
 ## 🎯 目标
 为 FISCO BCOS 节点提供一个安全、易用的证书签发服务。**客户端在本地生成并保管私钥**，通过挑战-响应机制证明其对公钥的所有权，服务端验证通过后仅签发证书，实现私钥永不离线。
@@ -7,7 +7,7 @@
 
 ## 🧱 技术选型
 - **后端框架**：FastAPI（Python）
-- **证书工具**：[Step Certificates CLI](https://smallstep.com/docs/step-cli/)
+- **证书工具**：Python `cryptography`（本地开发 CA，无交互）
 - **交互方式**：HTTP API（返回 JSON）
 - **安全机制**：**客户端生成私钥** + 挑战-响应（Challenge-Response）
 
@@ -59,7 +59,7 @@ POST /issue-certificate
 
 ---
 
-### 2. FastAPI 代码实现
+### 2. FastAPI 代码实现（基于 cryptography 的本地 CA）
 
 ```python
 # main.py
@@ -147,25 +147,44 @@ def issue_certificate(req: IssueRequest):
         with open(pub_key_path, "wb") as f:
             f.write(base64.b64decode(req.public_key))
 
-        # 使用 Step CLI 基于公钥签发证书
-        # --no-password --insecure 用于非交互式环境
-        result = subprocess.run([
-            "step", "ca", "certificate",
-            "--pubkey", pub_key_path,
-            "--no-password", "--insecure",
-            secure_node_name, crt_path
-        ], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"证书签发失败: {result.stderr}")
+        # 使用 cryptography 的本地 CA 签发证书（示意）
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from datetime import datetime, timedelta, timezone
 
-        # 获取 CA 证书链
-        # (此步骤可能需要根据step ca配置调整，或直接读取CA根证书)
-        ca_root_path = os.environ.get("STEPPATH", "~/.step") + "/certs/root_ca.crt"
-        with open(ca_root_path, "rb") as f:
-            ca_data = base64.b64encode(f.read()).decode("utf-8")
+        # 本地生成/加载 CA（生产环境应持久化到安全位置）
+        ca_key = ec.generate_private_key(ec.SECP256R1())
+        subject = issuer = x509.Name([
+            x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, u"Fisco Development Root CA"),
+        ])
+        now = datetime.now(timezone.utc)
+        ca_cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(ca_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(minutes=1))
+            .not_valid_after(now + timedelta(days=3650))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=1), critical=True)
+        ).sign(ca_key, hashes.SHA256())
 
-        with open(crt_path, "rb") as f:
-            cert_data = base64.b64encode(f.read()).decode("utf-8")
+        # 从公钥生成证书（示意，实际应从 CSR 读取 subject 与扩展）
+        node_public_key = serialization.load_pem_public_key(base64.b64decode(req.public_key))
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, secure_node_name)]))
+            .issuer_name(ca_cert.subject)
+            .public_key(node_public_key)
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(minutes=1))
+            .not_valid_after(now + timedelta(days=365))
+            .sign(ca_key, hashes.SHA256())
+        )
+
+        ca_data = base64.b64encode(ca_cert.public_bytes(serialization.Encoding.PEM)).decode("utf-8")
+        cert_data = base64.b64encode(cert.public_bytes(serialization.Encoding.PEM)).decode("utf-8")
 
         return CertificateResponse(
             node_name=secure_node_name,
@@ -183,10 +202,7 @@ def issue_certificate(req: IssueRequest):
 pip install fastapi uvicorn cryptography
 ```
 
-### 2. 初始化 Step CA（首次运行）
-```bash
-step ca init --name="MyDemoCA" --dns=localhost --address=:9000
-```
+（已移除 Step 依赖，无需初始化 Step CA）
 
 ### 3. 启动服务
 ```bash

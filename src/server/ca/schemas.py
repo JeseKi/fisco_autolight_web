@@ -1,3 +1,4 @@
+
 """
 证书签发服务的数据模型定义。
 """
@@ -25,7 +26,7 @@ class IssueRequest(BaseModel):
     客户端请求签发证书时的数据模型。
     """
     original_node_id: str
-    public_key: str
+    csr: str  # Base64 编码的证书签名请求 (CSR)
     challenge: str
     signature: str  # Base64 编码的签名
 
