@@ -12,7 +12,8 @@
     - _ensure_dirs(): 创建必要目录
     - _write_config_if_absent(p2p_port: int, rpc_port: int): 写入固定 config.ini
     - _write_nodes_if_absent(): 写入最小 nodes.json
-    - _generate_key_and_cert(): 生成私钥/CSR并使用本地开发 CA 签名
+    - _generate_key_and_cert(): 生成 TLS 私钥/CSR并使用本地开发 CA 签名
+    - _ensure_consensus_key_and_genesis(): 生成共识私钥 node.pem 与基于模板的创世文件
     - _start_process(): 启动 fisco-bcos 进程
     - _is_process_running(pid: int) -> bool: 判断 PID 是否仍在运行
     - _probe_rpc_ready(timeout_s: int) -> bool: 探测 RPC 端口
@@ -152,6 +153,91 @@ def _generate_key_and_cert() -> None:
     p["ca_crt"].write_bytes(base64.b64decode(result["ca_bundle"]))
 
 
+def _ensure_consensus_key_and_genesis(group_id: str | None = None) -> None:
+    """确保共识私钥与创世文件存在：
+    - 若缺少 conf/node.pem 则生成 secp256k1 私钥
+    - 读取模板 src/server/fisco/config.genesis，替换 group_id 与 node 列表，仅保留 node.0=<nodeid>: 1
+    - 将结果写入 runtime/conf/group.<group_id>.genesis
+    """
+    p = _paths()
+    conf_dir = p["conf"]
+    conf_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1) 生成/加载 secp256k1 共识私钥
+    node_key_path = conf_dir / "node.pem"
+    if not node_key_path.exists():
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        key = ec.generate_private_key(ec.SECP256K1())
+        node_key_path.write_bytes(
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+
+    # 2) 由 node.pem 推导 nodeID（未压缩公钥去掉 0x04 前缀，x||y 组成的 64 字节 -> 128 hex）
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    loaded_key = serialization.load_pem_private_key(node_key_path.read_bytes(), password=None)
+    if not isinstance(loaded_key, ec.EllipticCurvePrivateKey) or not isinstance(loaded_key.curve, ec.SECP256K1):
+        raise RuntimeError("conf/node.pem 不是 secp256k1 私钥")
+    pub = loaded_key.public_key().public_numbers()
+    x_hex = format(pub.x, '064x')
+    y_hex = format(pub.y, '064x')
+    node_id_hex = f"{x_hex}{y_hex}"
+
+    # 便于排查：写出 node.nodeid 文件
+    nodeid_path = conf_dir / "node.nodeid"
+    nodeid_path.write_text(node_id_hex + "\n", encoding="utf-8")
+
+    # 3) 基于模板生成 group.<group_id>.genesis
+    gid = group_id or os.environ.get("FISCO_GROUP_ID", "group0")
+    template_path = Path(__file__).resolve().parent / "config.genesis"
+    if not template_path.exists():
+        logger.warning("未找到 config.genesis 模板，跳过创世写入")
+        return
+    text = template_path.read_text(encoding="utf-8").splitlines()
+
+    out_lines: list[str] = []
+    in_consensus = False
+    for line in text:
+        raw = line.rstrip("\n")
+        stripped = raw.strip()
+        # 替换 group_id
+        if stripped.startswith("group_id="):
+            out_lines.append(raw[:raw.index("g")] + f"group_id={gid}") if "g" in raw else out_lines.append(f"group_id={gid}")
+            continue
+        # 共识段开始/结束识别
+        if stripped.startswith("[consensus]"):
+            in_consensus = True
+            out_lines.append(raw)
+            continue
+        if in_consensus and stripped.startswith("[") and stripped.endswith("]"):
+            # 离开共识段时，写入我们唯一的 node.0 行
+            out_lines.append(f"    node.0={node_id_hex}: 1")
+            in_consensus = False
+            out_lines.append(raw)
+            continue
+        if in_consensus:
+            # 过滤掉 node.N=... 行，其余配置原样保留
+            if stripped.startswith("node."):
+                continue
+            out_lines.append(raw)
+            continue
+        out_lines.append(raw)
+
+    # 若模板中 [consensus] 是最后一段，需要在文件末尾写入 node.0 行
+    if in_consensus:
+        out_lines.append(f"    node.0={node_id_hex}: 1")
+
+    target = conf_dir / f"group.{gid}.genesis"
+    target.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+
+
 def _is_process_running(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -226,6 +312,28 @@ def _ensure_binary() -> None:
             pass
 
 
+def _log_group_observability() -> None:
+    """打印群组相关的关键信息：group_id、genesis 是否存在、账本目录是否存在、本节点 nodeID。"""
+    p = _paths()
+    gid = os.environ.get("FISCO_GROUP_ID", "group0")
+    genesis_path = p["conf"] / f"group.{gid}.genesis"
+    data_group_dir = p["data"] / "group" / gid
+    nodeid_path = p["conf"] / "node.nodeid"
+
+    info: Dict[str, str | bool] = {
+        "group_id": gid,
+        "genesis_exists": genesis_path.exists(),
+        "data_group_dir_exists": data_group_dir.exists(),
+    }
+    if nodeid_path.exists():
+        try:
+            info["node_id"] = nodeid_path.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+
+    logger.info(f"群组可观测信息: {json.dumps(info, ensure_ascii=False)}")
+
+
 def status() -> NodeStatus:
     p = _paths()
     p2p_port = _get_env_int("FISCO_P2P_PORT", 30300)
@@ -268,6 +376,11 @@ def ensure_started() -> NodeStatus:
     _write_config_if_absent(p2p_port=p2p_port, rpc_port=rpc_port)
     _write_nodes_if_absent()
     _generate_key_and_cert()
+    # 在启动前确保共识私钥与创世文件存在
+    try:
+        _ensure_consensus_key_and_genesis(os.environ.get("FISCO_GROUP_ID", "group0"))
+    except Exception as e:
+        logger.warning(f"共识密钥/创世文件准备失败：{e}")
 
     p = _paths()
 
@@ -292,6 +405,11 @@ def ensure_started() -> NodeStatus:
     # 记录状态文件
     s = status()
     p["status"].write_text(json.dumps(s.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
+    # 打印群组可观测信息（基于磁盘与配置，不依赖 RPC）
+    try:
+        _log_group_observability()
+    except Exception as e:
+        logger.debug(f"记录群组可观测信息失败：{e}")
     return s
 
 

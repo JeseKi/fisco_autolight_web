@@ -44,6 +44,9 @@ def test_ensure_started_without_binary(tmp_path, monkeypatch):
     monkeypatch.setattr(services, "_probe_rpc_ready", lambda port, timeout_s=15: True)
     s = services.ensure_started()
     assert s.initialized is True
+    # 检查共识密钥与创世文件是否生成
+    assert (tmp_path / "conf" / "node.pem").exists()
+    assert (tmp_path / "conf" / "group.group0.genesis").exists()
 
 
 def test_ensure_started_happy_path(tmp_path, monkeypatch):
@@ -74,5 +77,8 @@ def test_ensure_started_happy_path(tmp_path, monkeypatch):
     assert Path(tmp_path / "conf" / "ssl.key").exists()
     assert Path(tmp_path / "conf" / "ssl.crt").exists()
     assert Path(tmp_path / "conf" / "ca.crt").exists()
+    # 共识密钥与创世
+    assert (tmp_path / "conf" / "node.pem").exists()
+    assert (tmp_path / "conf" / "group.group0.genesis").exists()
 
 
