@@ -75,6 +75,14 @@ def _get_build_chain_layout_paths() -> dict[str, Path]:
         "ca_crt": base / "conf" / "ca.crt",
         "pid": base / "node.pid",
         "status": base / "node_status.json",
+        # SDK 目录（与 node0 同级）
+        "sdk_dir": base.parent / "sdk",
+        "sdk_ssl_key": (base.parent / "sdk" / "ssl.key"),
+        "sdk_ssl_crt": (base.parent / "sdk" / "ssl.crt"),
+        # 一些发行版/脚本使用 sdk.key / sdk.crt 命名
+        "sdk_key": (base.parent / "sdk" / "sdk.key"),
+        "sdk_crt": (base.parent / "sdk" / "sdk.crt"),
+        "sdk_ca_crt": (base.parent / "sdk" / "ca.crt"),
     }
 
 
@@ -162,3 +170,67 @@ def overwrite_tls_with_internal_ca() -> None:
     (conf_dir / "ca.crt").write_bytes(base64.b64decode(result["ca_bundle"]))
 
     logger.info("已使用内部 CA 覆盖 TLS 证书与私钥：conf/ssl.key、conf/ssl.crt、conf/ca.crt")
+
+
+def overwrite_sdk_tls_with_internal_ca() -> None:
+    """为 SDK 覆盖/生成 TLS 三件（sdk/ssl.key、sdk/ssl.crt、sdk/ca.crt）。
+
+    - 用于客户端/SDK 侧双向 TLS 或后续分发。
+    - 始终覆盖，确保与服务端 CA 一致。
+    """
+    if not _is_build_chain_layout_ready():
+        return
+    p = _get_build_chain_layout_paths()
+    sdk_dir = p["sdk_dir"]
+    sdk_dir.mkdir(parents=True, exist_ok=True)
+
+    # 确保内部 CA 就绪
+    _load_or_create_dev_ca()
+
+    # 生成新的 ECDSA P-256 私钥与 CSR
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization, hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+    from src.server.config import config as app_config
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "CN"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, app_config.node_cert_organization_name),
+        x509.NameAttribute(NameOID.COMMON_NAME, f"{app_config.node_cert_common_name}-sdk"),
+    ])
+    csr = x509.CertificateSigningRequestBuilder().subject_name(subject).sign(key, hashes.SHA256())
+    csr_pem = csr.public_bytes(serialization.Encoding.PEM)
+    csr_b64 = base64.b64encode(csr_pem).decode("utf-8")
+
+    result = issue_certificate_with_local_ca(csr_b64)
+
+    # 覆盖写入 TLS 三件
+    key_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    cert_pem = base64.b64decode(result["certificate"])
+    ca_pem = base64.b64decode(result["ca_bundle"])
+
+    # 写入 ssl.* 命名
+    (sdk_dir / "ssl.key").write_bytes(
+        key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    (sdk_dir / "ssl.crt").write_bytes(cert_pem)
+    (sdk_dir / "ca.crt").write_bytes(ca_pem)
+
+    # 同步写入 sdk.* 命名（覆盖可能存在的 build_chain 产物）
+    try:
+        p["sdk_key"].write_bytes(key_pem)
+        p["sdk_crt"].write_bytes(cert_pem)
+    except Exception:
+        pass
+
+    logger.info("已使用内部 CA 覆盖 SDK TLS：sdk/ssl.key、sdk/ssl.crt、sdk/ca.crt（并同步 sdk.key/sdk.crt）")

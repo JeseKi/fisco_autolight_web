@@ -17,8 +17,10 @@ from .node_setup import (
     _run_build_chain_sh,
     _get_env_int,
     overwrite_tls_with_internal_ca,
+    overwrite_sdk_tls_with_internal_ca,
 )
 from .node_process import start_node, get_node_status
+from .contract_deploy import deploy_counter_if_needed
 
 
 def status() -> NodeStatus:
@@ -43,6 +45,19 @@ def ensure_started() -> NodeStatus:
         overwrite_tls_with_internal_ca()
     except Exception as e:
         logger.warning(f"覆盖 TLS 失败：{e}")
+    # 同步覆盖 SDK 侧 TLS
+    try:
+        overwrite_sdk_tls_with_internal_ca()
+    except Exception as e:
+        logger.warning(f"覆盖 SDK TLS 失败：{e}")
 
     # 启动节点
-    return start_node()
+    s = start_node()
+
+    # 节点就绪后尝试部署初始合约（幂等）
+    try:
+        res = deploy_counter_if_needed()
+        logger.info(f"初始合约部署结果：{res.model_dump_json()}")
+    except Exception as e:
+        logger.warning(f"初始合约部署失败（不中断启动流程）：{e}")
+    return s
