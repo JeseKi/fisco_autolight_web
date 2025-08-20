@@ -1,11 +1,10 @@
-
 """
 证书签发服务的业务逻辑层。
 此模块封装了核心逻辑，提供更清晰的接口供路由层调用。
 """
 
 from . import core
-from .schemas import ChallengeRequest, IssueRequest, ChallengeResponse, CertificateResponse
+from .schemas import ChallengeRequest, IssueRequest, ChallengeResponse, CertificateResponse, VerifyCertificateRequest, VerifyCertificateResponse
 
 
 def request_challenge_service(req: ChallengeRequest) -> ChallengeResponse:
@@ -62,3 +61,13 @@ def issue_certificate_service(req: IssueRequest) -> CertificateResponse:
         certificate=cert_data["certificate"],
         ca_bundle=cert_data["ca_bundle"],
     )
+
+
+def verify_certificate_service(req: VerifyCertificateRequest) -> VerifyCertificateResponse:
+    """
+    处理验证证书是否由我们签发的业务逻辑。
+    :param req: 包含证书内容的请求对象。
+    :return: 包含验证结果的响应对象。
+    """
+    result = core.verify_certificate_issued_by_us(req.certificate_content)
+    return VerifyCertificateResponse(**result)

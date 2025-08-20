@@ -42,6 +42,10 @@ def _ensure_build_chain_sh() -> None:
 
 def _get_default_node_path() -> Path:
     """获取默认节点路径。"""
+    env_base = os.environ.get("FISCO_BASE_DIR")
+    if env_base:
+        # 允许通过环境变量覆盖节点基础目录，便于测试隔离与自定义部署
+        return Path(env_base)
     code_dir = _get_code_dir()
     return code_dir / "nodes" / "127.0.0.1" / "node0"
 

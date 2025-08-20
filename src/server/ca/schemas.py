@@ -1,4 +1,3 @@
-
 """
 证书签发服务的数据模型定义。
 """
@@ -38,3 +37,19 @@ class CertificateResponse(BaseModel):
     node_name: str
     certificate: str   # Base64 编码的 node.crt
     ca_bundle: str     # Base64 编码的 ca.crt
+
+
+class VerifyCertificateRequest(BaseModel):
+    """
+    客户端请求验证证书归属的数据模型。
+    """
+    certificate_content: str  # PEM 格式的证书内容
+
+
+class VerifyCertificateResponse(BaseModel):
+    """
+    服务端返回证书验证结果的数据模型。
+    """
+    is_issued_by_us: bool
+    issuer_common_name: str | None = None
+    subject_common_name: str | None = None

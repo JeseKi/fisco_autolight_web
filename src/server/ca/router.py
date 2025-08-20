@@ -9,6 +9,8 @@ from .schemas import (
     ChallengeResponse,
     IssueRequest,
     CertificateResponse,
+    VerifyCertificateRequest,
+    VerifyCertificateResponse,
 )
 
 router = APIRouter(prefix="/ca", tags=["Certificate Authority"])
@@ -39,6 +41,18 @@ async def issue_certificate(req: IssueRequest) -> CertificateResponse:
     except RuntimeError as e:
         # 捕获核心逻辑中定义的签发错误，返回 500
         raise HTTPException(status_code=500, detail=f"证书签发失败: {str(e)}")
+    except Exception as e:
+        # 捕获所有未预期的错误并返回 500
+        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+
+
+@router.post("/verify-certificate", response_model=VerifyCertificateResponse)
+async def verify_certificate(req: VerifyCertificateRequest) -> VerifyCertificateResponse:
+    """
+    客户端上传证书内容，验证该证书是否由我们签发。
+    """
+    try:
+        return services.verify_certificate_service(req)
     except Exception as e:
         # 捕获所有未预期的错误并返回 500
         raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")

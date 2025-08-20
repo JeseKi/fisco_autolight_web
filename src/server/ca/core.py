@@ -1,4 +1,3 @@
-
 """
 证书签发服务的核心逻辑实现。
 包括生成挑战、验证签名、调用 step CLI 签发证书等。
@@ -12,6 +11,7 @@ import secrets
 import subprocess
 import tempfile
 from typing import Dict
+import re
 
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
@@ -389,3 +389,95 @@ def issue_certificate_with_local_ca(csr_b64: str) -> Dict[str, str]:
     ca_b64 = base64.b64encode(ca_cert.public_bytes(Encoding.PEM)).decode("utf-8")
 
     return {"certificate": cert_b64, "ca_bundle": ca_b64}
+
+
+def _load_certificate_from_input(certificate_input: str) -> x509.Certificate:
+    """
+    尝试从输入中解析证书，兼容以下多种输入形式：
+    1) 直接的 PEM 文本（包含 -----BEGIN CERTIFICATE-----）
+    2) 仅包含证书 PEM 的一段文本（从中提取首个证书块）
+    3) Base64 编码的 PEM 文本
+    4) DER 二进制（以 Base64 字符串形式传入）
+
+    :param certificate_input: 证书输入字符串
+    :return: 解析得到的 x509.Certificate 对象
+    :raises ValueError: 当无法识别/解析证书时
+    """
+    text = certificate_input.strip()
+
+    # 情况 1/2：文本中已经包含 PEM 头
+    if "-----BEGIN CERTIFICATE-----" in text:
+        try:
+            # 直接按完整 PEM 尝试
+            return x509.load_pem_x509_certificate(text.encode("utf-8"))
+        except Exception:
+            # 尝试提取第一段 PEM 块
+            try:
+                pem_blocks = re.findall(
+                    r"-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----",
+                    text,
+                )
+                if pem_blocks:
+                    return x509.load_pem_x509_certificate(pem_blocks[0].encode("utf-8"))
+            except Exception:
+                pass
+
+    # 情况 3/4：尝试作为 Base64 字符串解码后再解析（先 PEM，失败再 DER）
+    try:
+        decoded = base64.b64decode(text)
+        # 优先尝试 PEM
+        try:
+            return x509.load_pem_x509_certificate(decoded)
+        except Exception:
+            # 再尝试 DER
+            return x509.load_der_x509_certificate(decoded)
+    except Exception:
+        pass
+
+    raise ValueError("无法从输入中解析证书")
+
+
+def verify_certificate_issued_by_us(cert_input: str) -> dict:
+    """
+    验证一个证书是否由我们自己签发。
+    通过比较证书的签发者与我们 CA 证书的主体来判断。
+    
+    :param cert_input: 证书内容（支持 PEM 文本 或 Base64 编码的 PEM/DER）。
+    :return: 包含验证结果、签发者和主题 CN 的字典。
+             例如: {"is_issued_by_us": True, "issuer_cn": "...", "subject_cn": "..."}
+    """
+    try:
+        # 1. 加载待验证的证书（兼容 PEM / Base64 PEM / Base64 DER）
+        cert = _load_certificate_from_input(cert_input)
+        
+        # 2. 获取我们自己的 CA 证书
+        _, ca_cert = _load_or_create_dev_ca()
+        
+        # 3. 比较签发者 (Issuer) 和我们 CA 的主体 (Subject)
+        is_issued_by_us = cert.issuer == ca_cert.subject
+        
+        # 4. 提取 Issuer 和 Subject 的 Common Name (CN)
+        def _get_cn_from_name(name: x509.Name) -> str | None:
+            try:
+                return name.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+            except (IndexError, AttributeError):
+                return None
+                
+        issuer_cn = _get_cn_from_name(cert.issuer)
+        subject_cn = _get_cn_from_name(cert.subject)
+        
+        return {
+            "is_issued_by_us": is_issued_by_us,
+            "issuer_common_name": issuer_cn,
+            "subject_common_name": subject_cn,
+        }
+        
+    except Exception as e:
+        # 无效的用户输入通常不应视为服务器错误，降级为 warning 以减少干扰
+        logger.warning(f"验证证书归属时发生错误: {e}")
+        # 如果解析失败，也认为不是我们签发的
+        return {
+            "is_issued_by_us": False,
+            "issuer_common_name": None,
+            "subject_common_name": None,
+        }
