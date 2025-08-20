@@ -29,7 +29,7 @@ def get_lightnode_genesis() -> str:
     """
     获取 lightnode 创世文件。
     """
-    with open(Path.cwd() / "src/server/fisco/runtime/conf/group.group0.genesis", "r") as f:
+    with open(Path.cwd() / "src/server/fisco/nodes/127.0.0.1/node0/config.genesis", "r") as f:
         return f.read()
     
 def get_nodes_config() -> List[str]:

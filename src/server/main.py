@@ -8,15 +8,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from src.server.ca.router import router as ca_router
 from src.server.execution_file.router import router as execution_file_router
-from src.server.fisco.router import router as fisco_router
+from src.server.fisco_v2.router import router as fisco_router
 
 from src.server.config import config
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     try:
         # 延迟导入，避免在测试环境无二进制时报错影响导入
-        from src.server.fisco.services import ensure_started
+        from src.server.fisco_v2.services import ensure_started
 
         status = ensure_started()
         logger.info(f"FISCO 节点启动状态: {status.model_dump_json(indent=4)}")

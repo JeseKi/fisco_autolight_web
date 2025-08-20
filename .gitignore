@@ -38,8 +38,10 @@ __pycache__/
 .idea/
 .DS_Store/
 .coverage
+temp*
 
 # runtime
 runtime
-src/server/fisco/fisco-bcos
 src/server/ca/dev_ca
+bin
+nodes

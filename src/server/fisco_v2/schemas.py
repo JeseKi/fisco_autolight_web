@@ -26,5 +26,3 @@ class NodeStatus(BaseModel):
     base_dir: str = Field(description="节点的运行基目录")
     p2p_port: int = Field(description="P2P 端口")
     rpc_port: int = Field(description="RPC 端口")
-
-
