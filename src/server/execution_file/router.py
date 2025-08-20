@@ -21,6 +21,13 @@ async def get_lightnode_config() -> str:
     """
     return services.get_lightnode_config()
 
+@router.get("/genesis", response_model=str)
+async def get_lightnode_genesis() -> str:
+    """
+    获取 lightnode 创世文件。
+    """
+    return services.get_lightnode_genesis()
+
 @router.get("/nodes", response_model=List[str])
 async def get_nodes_config() -> List[str]:
     """

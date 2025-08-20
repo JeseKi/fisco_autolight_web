@@ -25,6 +25,13 @@ def get_lightnode_config() -> str:
     with open(Path.cwd() / "assets" / "config.ini", "r") as f:
         return f.read()
     
+def get_lightnode_genesis() -> str:
+    """
+    获取 lightnode 创世文件。
+    """
+    with open(Path.cwd() / "src/server/fisco/runtime/conf/group.group0.genesis", "r") as f:
+        return f.read()
+    
 def get_nodes_config() -> List[str]:
     """
     获取 nodes 配置。
