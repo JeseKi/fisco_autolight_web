@@ -16,7 +16,7 @@ COPY config.json .
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN apt-get update && apt-get install -y curl
 COPY src/server/ ./src/server/
 COPY --from=builder /app/dist ./dist
 
