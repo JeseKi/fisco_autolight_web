@@ -5,3 +5,8 @@ services:
     build: .
     ports:
       - "8000:8000"
+      - "30300:30300"
+      - "20200:20200"
+    volumes:
+      - ./config.json:/app/config.json
+    command: ["python", "-m", "src.server.run"]

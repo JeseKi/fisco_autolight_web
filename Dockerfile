@@ -21,5 +21,7 @@ COPY src/server/ ./src/server/
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8000
+EXPOSE 30300
+EXPOSE 20200
 
 CMD ["python","-m","src.server.run"] 
