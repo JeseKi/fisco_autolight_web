@@ -1,5 +1,5 @@
 {
-    "linux_execution_file_url" : "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos-lightnode",
+    "linux_execution_file_url" : "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/release.linux.zip",
     "macos_execution_file_url" : "https://present-files-1317479375.cos.ap-guangzhou.myqcloud.com/fisco-bcos-lightnode",
     "linux_lightnode_ezdeploy_url" : "https://github.com/JeseKi/fisco_autolight_client",
     "mac_lightnode_ezdeploy_url" : "https://github.com/JeseKi/fisco_autolight_client",
