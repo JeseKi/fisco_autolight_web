@@ -12,6 +12,8 @@ from fastapi import FastAPI
 from src.server.ca.router import router as ca_router
 from src.server.execution_file.router import router as execution_file_router
 from src.server.fisco_v2.router import router as fisco_router
+from src.server.panel.router import router as panel_router
+from src.server.panel.auth import init_secret
 
 from src.server.config import config
 
@@ -20,6 +22,9 @@ async def lifespan(app: FastAPI):
     try:
         # 延迟导入，避免在测试环境无二进制时报错影响导入
         from src.server.fisco_v2.services import ensure_started
+
+        # 初始化面板密钥（若不存在则生成并打印）
+        init_secret()
 
         status = ensure_started()
         logger.info(f"FISCO 节点启动状态: {status.model_dump_json(indent=4)}")
@@ -50,6 +55,7 @@ app.add_middleware(
 app.include_router(ca_router, prefix="/v1")
 app.include_router(execution_file_router, prefix="/v1")
 app.include_router(fisco_router, prefix="/v1")
+app.include_router(panel_router)
 
 logger.info(f"config: {config.model_dump_json(indent=4)}")
 

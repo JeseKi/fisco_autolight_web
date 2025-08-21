@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FISCO 控制台面板</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; background: #1e1e1e; color: #d4d4d4; }
+    #toolbar { padding: 8px 12px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    #terminal-container { width: 100%; height: calc(100% - 40px); box-sizing: border-box; padding: 12px; }
+    #term { width: 100%; height: 100%; border: 1px solid #555; }
+    #login-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); }
+    .card { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; width: min(480px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+    .row { display: flex; gap: 8px; }
+    input, button { background: #0b1220; color: #e5e7eb; border: 1px solid #374151; border-radius: 8px; padding: 10px; }
+    input { flex: 1; }
+    button { cursor: pointer; }
+    .error { color: #ef4444; margin-top: 8px; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">Web Terminal Controller</div>
+  <div id="terminal-container"><div id="term"></div></div>
+
+  <div id="login-overlay">
+    <div class="card">
+      <div style="margin-bottom: 8px; font-weight: 600;">请输入面板密钥</div>
+      <div class="row">
+        <input id="secret" type="password" placeholder="secret.key 内容" />
+        <button id="login-btn">进入</button>
+      </div>
+      <div id="errmsg" class="error"></div>
+    </div>
+  </div>
+
+  <script>
+    const term = new Terminal({
+      cursorBlink: true,
+      theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('term'));
+    try { fitAddon.fit(); } catch {}
+    window.addEventListener('resize', () => { try { fitAddon.fit(); } catch {} });
+    term.focus();
+
+    let socket = null;
+    let sid = null;
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${location.host}/panel/ws${sid ? ('?sid=' + encodeURIComponent(sid)) : ''}`;
+      socket = new WebSocket(url);
+      socket.onopen = () => term.write('\x1b[32m[Connected]\x1b[0m\r\n');
+      socket.onmessage = (ev) => term.write(String(ev.data));
+      socket.onclose = () => term.write('\r\n\x1b[31m[Disconnected]\x1b[0m');
+      socket.onerror = () => {};
+      term.onData(data => { try { socket && socket.send(data); } catch {} });
+    }
+
+    async function login() {
+      const secret = document.getElementById('secret').value;
+      const btn = document.getElementById('login-btn');
+      const err = document.getElementById('errmsg');
+      err.textContent = '';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/panel/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret })
+        });
+        if (!res.ok) throw new Error('密钥错误');
+        const data = await res.json();
+        sid = data && data.sid;
+        document.getElementById('login-overlay').style.display = 'none';
+        connect();
+      } catch (e) {
+        err.textContent = e.message || '登录失败';
+      } finally {
+        btn.disabled = false;
+        term.focus();
+      }
+    }
+
+    document.getElementById('login-btn').addEventListener('click', login);
+    document.getElementById('secret').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>

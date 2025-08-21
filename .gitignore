@@ -47,3 +47,4 @@ bin
 nodes
 console.tar.gz
 console
+secret.key
