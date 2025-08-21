@@ -234,3 +234,58 @@ def overwrite_sdk_tls_with_internal_ca() -> None:
         pass
 
     logger.info("已使用内部 CA 覆盖 SDK TLS：sdk/ssl.key、sdk/ssl.crt、sdk/ca.crt（并同步 sdk.key/sdk.crt）")
+
+
+def download_console() -> None:
+    """下载并解压 FISCO 控制台。
+    
+    使用 download_console.sh 脚本下载最新版本的控制台。
+    如果控制台目录已存在，则跳过下载。
+    """
+    import subprocess
+    
+    code_dir = _get_code_dir()
+    console_dir = code_dir / "console"
+    
+    # 如果控制台目录已存在，则跳过下载
+    if console_dir.exists():
+        logger.info("控制台目录已存在，跳过下载")
+        return
+    
+    script_path = code_dir / "download_console.sh"
+    
+    # 确保脚本存在
+    if not script_path.exists():
+        raise RuntimeError(f"找不到下载控制台的脚本: {script_path}")
+    
+    # 确保脚本有执行权限
+    script_path.chmod(0o755)
+    
+    # 构建命令
+    cmd = ["bash", str(script_path)]
+    
+    logger.info(f"执行下载控制台脚本：{' '.join(cmd)}")
+    
+    try:
+        # 运行下载脚本
+        result = subprocess.run(
+            cmd,
+            cwd=str(code_dir),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        logger.info(f"下载控制台脚本执行完成: {result.stdout}")
+        
+        # 检查控制台目录是否创建成功
+        if not console_dir.exists():
+            raise RuntimeError("控制台脚本执行完成，但控制台目录未正确创建")
+            
+    except subprocess.CalledProcessError as e:
+        logger.error(f"下载控制台脚本执行失败: {e.stderr}")
+        raise RuntimeError(f"下载控制台脚本执行失败: {e.stderr}")
+    except Exception as e:
+        logger.error(f"运行下载控制台脚本时发生未知错误: {str(e)}")
+        raise RuntimeError(f"运行下载控制台脚本时发生未知错误: {str(e)}")

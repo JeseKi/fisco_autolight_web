@@ -16,7 +16,9 @@ from .node_setup import (
     _get_env_int,
     overwrite_tls_with_internal_ca,
     overwrite_sdk_tls_with_internal_ca,
+    download_console,
 )
+from .console_deploy import deploy_console
 from .node_process import start_node, get_node_status
 
 
@@ -37,6 +39,17 @@ def ensure_started() -> NodeStatus:
         rpc_port = _get_env_int("FISCO_RPC_PORT", 20200)
         _run_build_chain_sh(p2p_port, rpc_port)
     
+    # 下载控制台（如果不存在）
+    try:
+        from .console_deploy import _get_console_dir
+        console_dir = _get_console_dir()
+        if not console_dir.exists():
+            download_console()
+        else:
+            logger.info("控制台目录已存在，跳过下载")
+    except Exception as e:
+        logger.warning(f"下载控制台失败：{e}")
+    
     # 使用内部 CA 覆盖 TLS（总是覆盖，确保统一）
     try:
         overwrite_tls_with_internal_ca()
@@ -50,4 +63,12 @@ def ensure_started() -> NodeStatus:
 
     # 启动节点
     s = start_node()
+    
+    # 部署控制台（在节点启动后）
+    try:
+        rpc_port = _get_env_int("FISCO_RPC_PORT", 20200)
+        deploy_console(rpc_port)
+    except Exception as e:
+        logger.warning(f"部署控制台失败：{e}")
+
     return s
