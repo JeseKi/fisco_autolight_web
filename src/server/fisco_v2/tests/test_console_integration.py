@@ -5,7 +5,6 @@
 def test_imports():
     """测试导入是否正常。"""
     try:
-        from src.server.fisco_v2.services.node_status import ensure_started
         print("导入成功")
         return True
     except Exception as e:

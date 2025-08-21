@@ -11,7 +11,6 @@ FISCO v2 服务测试。
 
 import os
 import sys
-from pathlib import Path
 
 # 允许从项目根导入
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))

@@ -2,11 +2,8 @@
 控制台部署服务测试。
 """
 
-import os
 import tempfile
-import shutil
 from pathlib import Path
-import pytest
 from src.server.fisco_v2.services.console_deploy import deploy_console, is_console_ready, _update_console_config_port
 
 

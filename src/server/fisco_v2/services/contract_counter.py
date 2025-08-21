@@ -171,7 +171,7 @@ def ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitRe
 
         # 如未找到，则尝试部署
         if not address:
-            out = _send_and_collect(child, "deploy Counter", prompt_timeout=timeout_s)
+            _ = _send_and_collect(child, "deploy Counter", prompt_timeout=timeout_s)
             # 部署完成后再次获取日志
             log_out = _send_and_collect(child, "getDeployLog", prompt_timeout=30)
             address = extract_contract_address_from_deploy_log(log_out)

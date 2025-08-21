@@ -7,7 +7,6 @@ import os
 from typing import Tuple
 from datetime import datetime, timedelta
 
-import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
