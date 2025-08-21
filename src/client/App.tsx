@@ -43,7 +43,7 @@ const App: React.FC = () => {
       setIsLoading(platform);
       
       // 调用后端 API 获取下载链接
-      const response = await fetch(`/api/v1/lightnode/ezdeploy/${platform}`);
+      const response = await fetch(`/v1/lightnode/ezdeploy/${platform}`);
       
       if (!response.ok) {
         throw new Error(`获取下载链接失败: ${response.status} ${response.statusText}`);

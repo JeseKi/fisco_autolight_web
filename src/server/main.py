@@ -4,6 +4,9 @@ FastAPI 应用入口点。
 
 from loguru import logger
 from contextlib import asynccontextmanager
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
 
 from fastapi import FastAPI
 from src.server.ca.router import router as ca_router
@@ -44,6 +47,9 @@ app.include_router(fisco_router, prefix="/v1")
 logger.info(f"config: {config.model_dump_json(indent=4)}")
 
 
-@app.get("/")
-async def root():
-    return {"message": "Welcome to the FISCO BCOS Certificate Authority Service"}
+@app.get("/{path}")
+async def index(path: str):
+    return FileResponse(path="dist/index.html")
+
+
+app.mount("/", StaticFiles(directory="dist", html=True), name="frontend")
