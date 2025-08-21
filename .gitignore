@@ -45,3 +45,5 @@ runtime
 src/server/ca/dev_ca
 bin
 nodes
+console.tar.gz
+console
