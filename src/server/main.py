@@ -16,6 +16,10 @@ from src.server.panel.router import router as panel_router
 from src.server.panel.auth import init_secret
 
 from src.server.config import config
+from src.server.fisco_v2.services.contract_watcher import (
+    start_periodic_contract_transfer_task,
+    stop_periodic_contract_transfer_task,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +32,8 @@ async def lifespan(app: FastAPI):
 
         status = ensure_started()
         logger.info(f"FISCO 节点启动状态: {status.model_dump_json(indent=4)}")
+        # 启动 Solidity 合约自动转移后台任务（每秒扫描一次）
+        start_periodic_contract_transfer_task(interval_seconds=1.0, app=app)
         yield
     except Exception as e:
         logger.warning(f"启动时未能确保 FISCO 节点运行：{e}")
@@ -41,6 +47,11 @@ async def lifespan(app: FastAPI):
             logger.info("FISCO 节点已停止")
         except Exception as e:
             logger.error(f"停止 FISCO 节点时发生错误: {e}")
+        # 停止 Solidity 合约自动转移任务
+        try:
+            await stop_periodic_contract_transfer_task(app)
+        except Exception:
+            pass
 
 app = FastAPI(title="FISCO BCOS Certificate Authority Service", lifespan=lifespan)
 app.add_middleware(

@@ -9,4 +9,5 @@ services:
       - "20200:20200"
     volumes:
       - ./config.json:/app/config.json
+      - ./solidity:/app/solidity
     command: ["python", "-m", "src.server.run"]
