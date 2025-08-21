@@ -6,7 +6,7 @@ from loguru import logger
 from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-
+from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi import FastAPI
 from src.server.ca.router import router as ca_router
@@ -38,6 +38,13 @@ async def lifespan(app: FastAPI):
             logger.error(f"停止 FISCO 节点时发生错误: {e}")
 
 app = FastAPI(title="FISCO BCOS Certificate Authority Service", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 包含证书签发服务的路由
 app.include_router(ca_router, prefix="/v1")
