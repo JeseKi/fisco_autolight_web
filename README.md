@@ -92,10 +92,10 @@ pnpm preview
 配置项说明：
 - `linux_execution_file_url`: Linux 平台轻节点执行文件的下载 URL。
 - `macos_execution_file_url`: macOS 平台轻节点执行文件的下载 URL。
-- `linux_lightnode_ezdeploy_url`: Linux 平台轻节点一键部署脚本的 URL。
-- `mac_lightnode_ezdeploy_url`: macOS 平台轻节点一键部署脚本的 URL。
+- `linux_lightnode_ezdeploy_url`: Linux 平台轻节点一键部署脚本应用的 URL。
+- `mac_lightnode_ezdeploy_url`: macOS 平台轻节点一键部署脚本应用的 URL。
 - `windows_execution_file_url`: Windows 平台的支持信息（当前不支持）。
-- `nodes`: 初始化的节点列表，可以是字符串数组。
+- `nodes`: 初始化的共识节点列表，字符串数组。
 
 ## 部署
 
