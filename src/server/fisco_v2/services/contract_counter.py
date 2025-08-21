@@ -1,13 +1,14 @@
 """
 文件功能：
-    通过控制台完成 Counter 合约的初始化（拷贝、部署、调用 increment）。
+    通过控制台完成 Counter 合约的初始化（拷贝、部署、链接、调用 increment）。
 
 公开接口：
     - is_counter_initialized() -> bool
       判断 `console/contracts/solidity/Counter.sol` 是否存在，用于确定合约部署初始化是否已执行。
 
     - ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitResult
-      确保 Counter.sol 拷贝到控制台目录，执行控制台交互：deploy Counter、getDeployLog 解析地址，并调用 increment。
+      确保 Counter.sol 拷贝到控制台目录，执行控制台交互：deploy Counter、getDeployLog 解析地址，
+      使用 `ln /apps/Counter 0x...` 将地址链接到应用空间，并调用 increment。
 
     - extract_contract_address_from_deploy_log(log_text: str) -> str | None
       从 getDeployLog 的输出文本中解析 Counter 合约地址（公开为纯函数，便于测试）。
@@ -148,6 +149,7 @@ def ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitRe
     console_ready = False
     deploy_success = False
     address: str | None = None
+    link_success = False
     increment_sent = False
 
     try:
@@ -161,6 +163,7 @@ def ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitRe
                 console_ready=False,
                 deploy_success=False,
                 contract_address=None,
+                link_success=False,
                 increment_sent=False,
                 errors=errors,
             )
@@ -187,9 +190,20 @@ def ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitRe
                 console_ready=console_ready,
                 deploy_success=deploy_success,
                 contract_address=None,
+                link_success=False,
                 increment_sent=False,
                 errors=errors,
             )
+
+        # 先链接到应用空间
+        try:
+            ln_cmd = f"ln /apps/Counter {address}"
+            _ = _send_and_collect(child, ln_cmd, prompt_timeout=timeout_s)
+            # 控制台 ln 命令一般无报错即认为成功
+            link_success = True
+        except Exception as e:
+            errors.append(f"链接 /apps/Counter 失败：{e}")
+            link_success = False
 
         # 调用 increment
         call_cmd = f"call Counter {address} increment"
@@ -202,6 +216,7 @@ def ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitRe
             console_ready=console_ready,
             deploy_success=deploy_success,
             contract_address=address,
+            link_success=link_success,
             increment_sent=increment_sent,
             errors=errors,
         )
@@ -215,6 +230,7 @@ def ensure_counter_deployed_and_increment(timeout_s: int = 60) -> ContractInitRe
             console_ready=console_ready,
             deploy_success=deploy_success,
             contract_address=address,
+            link_success=False,
             increment_sent=increment_sent,
             errors=errors,
         )

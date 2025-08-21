@@ -38,5 +38,6 @@ class ContractInitResult(BaseModel):
     console_ready: bool = Field(description="控制台是否成功启动并进入交互提示符")
     deploy_success: bool = Field(description="是否执行了 deploy Counter 并认为成功")
     contract_address: str | None = Field(default=None, description="从 getDeployLog 解析到的合约地址")
+    link_success: bool = Field(default=False, description="是否已将合约地址链接到 /apps/Counter")
     increment_sent: bool = Field(description="是否已发送 increment 调用")
     errors: list[str] = Field(default_factory=list, description="流程中的错误或警告集合")
