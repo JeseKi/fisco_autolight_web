@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from loguru import logger
+import json
 
 from ..schemas import NodeStatus
 from .node_setup import (
@@ -19,6 +20,7 @@ from .node_setup import (
     download_console,
 )
 from .console_deploy import deploy_console
+from .contract_counter import ensure_counter_deployed_and_increment, is_counter_initialized
 from .node_process import start_node, get_node_status
 
 
@@ -70,5 +72,19 @@ def ensure_started() -> NodeStatus:
         deploy_console(rpc_port)
     except Exception as e:
         logger.warning(f"部署控制台失败：{e}")
+
+    # 合约初始化与一次 increment 调用（幂等：通过是否存在 Counter.sol 判断是否已初始化）
+    try:
+        if not is_counter_initialized():
+            r = ensure_counter_deployed_and_increment()
+            if not r.deploy_success or not r.increment_sent:
+                logger.warning(f"合约初始化或调用可能失败：{json.dumps(r.model_dump(), ensure_ascii=False)}")
+        else:
+            # 已初始化，也尝试一次调用，确保链上交互按预期
+            r = ensure_counter_deployed_and_increment()
+            if not r.increment_sent:
+                logger.warning(f"已初始化但调用失败：{json.dumps(r.model_dump(), ensure_ascii=False)}")
+    except Exception as e:
+        logger.warning(f"合约初始化流程失败：{e}")
 
     return s

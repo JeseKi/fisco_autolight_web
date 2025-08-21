@@ -8,3 +8,4 @@ cryptography
 loguru
 httpx
 httpx[socks]
+pexpect

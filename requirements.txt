@@ -89,12 +89,16 @@ packaging==25.0
     # via
     #   build
     #   pytest
+pexpect==4.9.0
+    # via -r requirements.in
 pip-tools==7.5.0
     # via -r requirements.in
 pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+ptyprocess==0.7.0
+    # via pexpect
 pycparser==2.22
     # via cffi
 pydantic[email]==2.11.7
