@@ -9,7 +9,7 @@ RUN pnpm install
 COPY . .
 RUN pnpm run build
 
-FROM python:3.10-slim
+FROM python:3.10-jammy
 WORKDIR /app
 
 COPY config.json .
