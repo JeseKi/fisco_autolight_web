@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import threading
 from typing import Dict
-from pathlib import Path
 import os
 import re
 
@@ -33,11 +32,7 @@ class ConsoleManager:
             encoding="utf-8",
             echo=False,
             timeout=5,
-            env={
-                **os.environ,
-                "TERM": "xterm-256color",
-                "COLUMNS": "160",
-            },
+            env=os.environ,
         )
         return child
 
